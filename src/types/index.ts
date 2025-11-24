@@ -27,3 +27,10 @@ export interface IssueReport {
 }
 
 export type UserRole = 'student' | 'manager';
+
+// User profile data for forms
+export interface ProfileData {
+  name: string;
+  dorm_name: string;
+  role: UserRole;
+}

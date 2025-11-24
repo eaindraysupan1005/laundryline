@@ -4,26 +4,72 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Waves, ArrowLeft } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
+import { Waves, ArrowLeft, AlertCircle } from 'lucide-react';
 import { UserRole } from '../types';
+import { useAuth } from '../lib/AuthContext';
 import authLogo from '../assets/logo.png';
 
 interface AuthPageProps {
   mode: 'login' | 'signup';
-  onAuth: (email: string, password: string, role: UserRole, name?: string) => void;
+  onAuthSuccess: () => void;
   onNavigate: (page: 'home' | 'login' | 'signup') => void;
 }
 
-export function AuthPage({ mode, onAuth, onNavigate }: AuthPageProps) {
+export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
+  const { signIn, signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('student');
+  const [dormName, setDormName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password && (mode === 'login' || name)) {
-      onAuth(email, password, role, name);
+    console.log('🔄 AuthPage handleSubmit called for mode:', mode);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      if (mode === 'login') {
+        console.log('🔐 Starting login for:', email);
+        const result = await signIn(email, password);
+        console.log('🔐 Login result:', result);
+        if (result.error) {
+          console.error('❌ Login error:', result.error);
+          setError(result.error);
+        } else if (result.success) {
+          console.log('✅ Login successful, calling onAuthSuccess');
+          onAuthSuccess();
+        }
+      } else {
+        // Sign up mode
+        if (!name || !dormName) {
+          setError('Please fill in all required fields');
+          setIsLoading(false);
+          return;
+        }
+        
+        const result = await signUp({
+          email,
+          password,
+          name,
+          role,
+          dorm_name: dormName
+        });
+        
+        if (result.error) {
+          setError(result.error);
+        } else if (result.success) {
+          onAuthSuccess();
+        }
+      }
+    } catch (error) {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -54,19 +100,40 @@ export function AuthPage({ mode, onAuth, onNavigate }: AuthPageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'signup' && (
-                <div>
-                  <Label htmlFor="name" className="mb-2 block">Full Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="John Doe"
-                    required
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label htmlFor="name" className="mb-2 block">Full Name</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="John Doe"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="dormName" className="mb-2 block">Dormitory Name</Label>
+                    <Input
+                      id="dormName"
+                      type="text"
+                      value={dormName}
+                      onChange={(e) => setDormName(e.target.value)}
+                      placeholder="East Hall, West Wing, etc."
+                      required
+                    />
+                  </div>
+                </>
               )}
 
               <div>
@@ -108,9 +175,10 @@ export function AuthPage({ mode, onAuth, onNavigate }: AuthPageProps) {
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full bg-[var(--primary)] hover:bg-[var(--primary)]/90 text-[var(--text)]"
               >
-                {mode === 'login' ? 'Log In' : 'Sign Up'}
+                {isLoading ? 'Please wait...' : (mode === 'login' ? 'Log In' : 'Sign Up')}
               </Button>
             </form>
 

@@ -19,7 +19,7 @@ import {
 import { getQueuesForMachines, enqueueStudentToMachine, cancelQueueEntry } from './lib/queues';
 import { getIssuesForMachines, createIssueReport, resolveIssueReport, markIssueInProgress } from './lib/issues';
 import { toast, Toaster } from 'sonner';
-import logoImage from './assets/LOGO.png';
+import logoImage from './assets/laundryline.png';
 
 const sortMachinesByName = (items: Machine[]) =>
   [...items].sort((a, b) => a.name.localeCompare(b.name));

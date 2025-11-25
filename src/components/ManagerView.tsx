@@ -17,6 +17,7 @@ interface ManagerViewProps {
   onEditMachine: (id: string, name: string, location: string) => void;
   onDeleteMachine: (id: string) => void;
   onUpdateMachineStatus: (id: string, status: MachineStatus) => void;
+  onMarkIssueInProgress: (id: string) => Promise<void> | void;
   onResolveIssue: (id: string) => Promise<void> | void;
   dormName: string;
 }
@@ -28,6 +29,7 @@ export function ManagerView({
   onEditMachine,
   onDeleteMachine,
   onUpdateMachineStatus,
+  onMarkIssueInProgress,
   onResolveIssue,
   dormName
 }: ManagerViewProps) {
@@ -36,6 +38,43 @@ export function ManagerView({
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
   const [machineName, setMachineName] = useState('');
   const [machineLocation, setMachineLocation] = useState('');
+  const [issueActionPending, setIssueActionPending] = useState<Record<string, boolean>>({});
+
+  const setIssuePendingState = (issueId: string, isPending: boolean) => {
+    setIssueActionPending((prev) => {
+      if (isPending) {
+        if (prev[issueId]) {
+          return prev;
+        }
+        return { ...prev, [issueId]: true };
+      }
+
+      if (!prev[issueId]) {
+        return prev;
+      }
+
+      const { [issueId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const handleIssueInProgress = async (issueId: string) => {
+    setIssuePendingState(issueId, true);
+    try {
+      await Promise.resolve(onMarkIssueInProgress(issueId));
+    } finally {
+      setIssuePendingState(issueId, false);
+    }
+  };
+
+  const handleIssueResolved = async (issueId: string) => {
+    setIssuePendingState(issueId, true);
+    try {
+      await Promise.resolve(onResolveIssue(issueId));
+    } finally {
+      setIssuePendingState(issueId, false);
+    }
+  };
 
   const handleAddMachine = () => {
     if (machineName && machineLocation) {
@@ -213,7 +252,7 @@ export function ManagerView({
                   return (
                     <Card key={report.id} className="border-l-4 border-l-[var(--accent)]">
                       <CardContent className="pt-6">
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start gap-6">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <AlertTriangle className="w-5 h-5 text-[var(--accent)]" />
@@ -225,18 +264,32 @@ export function ManagerView({
                             {report.description && (
                               <p className="text-sm text-gray-700 mb-2">{report.description}</p>
                             )}
+                            {report.status === 'in_progress' && (
+                              <Badge className="bg-yellow-500 text-black mb-2">Maintenance in progress</Badge>
+                            )}
                             <div className="flex gap-4 text-xs text-gray-500">
                               <span>Reported by: {report.studentId}</span>
                               <span>{new Date(report.timestamp).toLocaleString()}</span>
                             </div>
                           </div>
-                          <Button
-                            onClick={() => onResolveIssue(report.id)}
-                            className="bg-green-500 hover:bg-green-600"
-                            size="sm"
-                          >
-                            Mark Resolved
-                          </Button>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              onClick={() => handleIssueInProgress(report.id)}
+                              className="bg-[var(--primary)] hover:bg-[var(--primary)/90] text-[var(--text)]"
+                              size="sm"
+                              disabled={report.status === 'in_progress' || issueActionPending[report.id] === true}
+                            >
+                              Maintenance In Progress
+                            </Button>
+                            <Button
+                              onClick={() => handleIssueResolved(report.id)}
+                              className="bg-green-500 hover:bg-green-600"
+                              size="sm"
+                              disabled={issueActionPending[report.id] === true}
+                            >
+                              Mark Resolved
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -308,7 +361,7 @@ export function ManagerView({
               />
             </div>
             <div>
-              <Label htmlFor="machineDorm">Dormitory</Label>
+              <Label className="mb-4"htmlFor="machineDorm">Dormitory</Label>
               <Input
                 id="machineDorm"
                 value={dormName}
@@ -333,7 +386,7 @@ export function ManagerView({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="editMachineName">Machine Name</Label>
+              <Label className="mb-4" htmlFor="editMachineName">Machine Name</Label>
               <Input
                 id="editMachineName"
                 value={machineName}
@@ -342,7 +395,7 @@ export function ManagerView({
               />
             </div>
             <div>
-              <Label htmlFor="editMachineLocation">Location</Label>
+              <Label  className="mb-4" htmlFor="editMachineLocation">Location</Label>
               <Input
                 id="editMachineLocation"
                 value={machineLocation}
@@ -351,7 +404,7 @@ export function ManagerView({
               />
             </div>
             <div>
-              <Label htmlFor="editMachineDorm">Dormitory</Label>
+              <Label  className="mb-4" htmlFor="editMachineDorm">Dormitory</Label>
               <Input
                 id="editMachineDorm"
                 value={editingMachine?.dorm_name ?? dormName}

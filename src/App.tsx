@@ -15,7 +15,7 @@ import {
   deleteMachineById
 } from './lib/machines';
 import { getQueuesForMachines, enqueueStudentToMachine, cancelQueueEntry } from './lib/queues';
-import { getIssuesForMachines, createIssueReport, resolveIssueReport } from './lib/issues';
+import { getIssuesForMachines, createIssueReport, resolveIssueReport, markIssueInProgress } from './lib/issues';
 import { toast, Toaster } from 'sonner';
 import logoImage from './assets/LOGO.png';
 
@@ -411,6 +411,27 @@ function AppContent() {
     }
   };
 
+  const handleMarkIssueInProgress = async (id: string) => {
+    try {
+      const { data, error } = await markIssueInProgress(id);
+
+      if (error || !data) {
+        console.error('Failed to update issue status:', error);
+        toast.error(error ? `Failed to update issue status: ${error}` : 'Failed to update issue status.');
+        return;
+      }
+
+      setIssueReports((prev) =>
+        prev.map((report) => (report.id === id ? { ...report, status: data.status } : report))
+      );
+
+      toast.success('Issue marked as in progress.');
+    } catch (error) {
+      console.error('Unexpected error updating issue status:', error);
+      toast.error('Failed to update issue status. Please try again.');
+    }
+  };
+
   useEffect(() => {
     // Ensure favicon reflects the app's logo for better branding in the tab bar
     let favicon = document.querySelector<HTMLLinkElement>("link[rel='icon']");
@@ -472,6 +493,7 @@ function AppContent() {
                 onEditMachine={handleEditMachine}
                 onDeleteMachine={handleDeleteMachine}
                 onUpdateMachineStatus={handleUpdateMachineStatus}
+                onMarkIssueInProgress={handleMarkIssueInProgress}
                 onResolveIssue={handleResolveIssue}
                 dormName={user.dorm_name}
               />

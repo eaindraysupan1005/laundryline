@@ -129,3 +129,18 @@ export async function resolveIssueReport(issueId: string): Promise<{ data?: Issu
 
   return { data: mapIssueRow(data as IssueRow) }
 }
+
+export async function markIssueInProgress(issueId: string): Promise<{ data?: IssueReport; error?: string }> {
+  const { data, error } = await supabase
+    .from('issues')
+    .update({ status: 'in_progress', modified_at: new Date().toISOString() })
+    .eq('id', issueId)
+    .select('id, machine_id, reporter_id, description, status, created_at, modified_at')
+    .single()
+
+  if (error || !data) {
+    return { error: error?.message ?? 'Failed to update issue status' }
+  }
+
+  return { data: mapIssueRow(data as IssueRow) }
+}

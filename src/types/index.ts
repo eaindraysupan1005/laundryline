@@ -11,6 +11,12 @@ export interface Machine {
   last_updated?: string;
 }
 
+export interface Dorm {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
 export type QueueStatus = 'waiting' | 'notified' | 'in_progress' | 'completed' | 'cancelled';
 
 export interface QueueEntry {

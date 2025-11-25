@@ -40,6 +40,11 @@
   - `npm run dev` – Launches the Vite dev server
   - `npm run build` – Bundles the app for production
 
+  ## 📘 API Documentation
+  - `openapi.yaml` – OpenAPI 3.0 spec covering the Supabase REST resources (machines, queues, issues, dorms, users)
+  - Render the spec with [Swagger UI](https://swagger.io/tools/swagger-ui/) or [Redoc](https://redocly.com/redoc/) by pointing them to `openapi.yaml`
+  - Update this spec whenever Supabase schema or Edge Function behavior changes to keep docs in sync
+
   ## 📁 Project Structure (excerpt)
   ```
   src/

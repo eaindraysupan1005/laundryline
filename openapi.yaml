@@ -1,0 +1,430 @@
+openapi: 3.0.3
+info:
+  title: LaundryLine API (Supabase)
+  version: 1.0.0
+  description: |
+    OpenAPI description of the primary Supabase REST resources used by LaundryLine.
+    Each endpoint proxies directly to the Supabase PostgREST service and therefore
+    accepts the usual Supabase query parameters (e.g. `select`, `eq`, `order`).
+servers:
+  - url: https://{project-ref}.supabase.co
+    description: Supabase project base URL (replace `{project-ref}`).
+    variables:
+      project-ref:
+        default: atzfrcvmytdjpudiuhcv
+        description: Supabase project reference identifier.
+  - url: http://localhost:54321
+    description: Local Supabase development stack (Docker) base URL.
+tags:
+  - name: Machines
+    description: Laundry machine inventory and status.
+  - name: Queues
+    description: Student queue entries per machine.
+  - name: Issues
+    description: Issue reports submitted by students and handled by managers.
+  - name: Dorms
+    description: Dormitory registry used during sign-up and machine assignment.
+  - name: Users
+    description: Authenticated profile data linked to Supabase Auth users.
+components:
+  securitySchemes:
+    supabaseKey:
+      type: apiKey
+      in: header
+      name: apikey
+    supabaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Machine:
+      type: object
+      required: [id, name, location, operation_status, available_status, dorm_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        location:
+          type: string
+        operation_status:
+          type: string
+          enum: [can_use, cannot_use, in_maintenance]
+        available_status:
+          type: string
+          enum: [free, in_use]
+        dorm_name:
+          type: string
+        last_updated:
+          type: string
+          format: date-time
+    QueueEntry:
+      type: object
+      required: [id, machineId, userId, position, joinedAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        position:
+          type: integer
+        joinedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [waiting, notified, in_progress, completed, cancelled]
+        studentName:
+          type: string
+          nullable: true
+        studentIdNo:
+          type: string
+          nullable: true
+    IssueReport:
+      type: object
+      required: [id, machineId, studentId, issueType, timestamp, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+        issueType:
+          type: string
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, in_progress, resolved]
+    Dorm:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    UserProfile:
+      type: object
+      required: [id, email, name, role, dorm_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [student, manager]
+        dorm_name:
+          type: string
+        id_no:
+          type: string
+          nullable: true
+paths:
+  /rest/v1/machines:
+    get:
+      tags: [Machines]
+      summary: List machines
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      responses:
+        '200':
+          description: List of machines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Machine'
+    post:
+      tags: [Machines]
+      summary: Create machine
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Machine'
+      responses:
+        '201':
+          description: Machine created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Machine'
+  /rest/v1/machines/{id}:
+    patch:
+      tags: [Machines]
+      summary: Update machine
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Machine'
+      responses:
+        '200':
+          description: Updated machine
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Machine'
+    delete:
+      tags: [Machines]
+      summary: Delete machine
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Machine removed
+  /rest/v1/queues:
+    get:
+      tags: [Queues]
+      summary: List queue entries
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      responses:
+        '200':
+          description: Queue entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QueueEntry'
+    post:
+      tags: [Queues]
+      summary: Join queue
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueueEntry'
+      responses:
+        '201':
+          description: Queue entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueEntry'
+  /rest/v1/queues/{id}:
+    patch:
+      tags: [Queues]
+      summary: Update queue entry status
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueueEntry'
+      responses:
+        '200':
+          description: Updated queue entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueEntry'
+    delete:
+      tags: [Queues]
+      summary: Remove queue entry
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Entry deleted
+  /rest/v1/issues:
+    get:
+      tags: [Issues]
+      summary: List issue reports
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      responses:
+        '200':
+          description: Issue reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IssueReport'
+    post:
+      tags: [Issues]
+      summary: Create issue report
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueReport'
+      responses:
+        '201':
+          description: Issue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueReport'
+  /rest/v1/issues/{id}:
+    patch:
+      tags: [Issues]
+      summary: Update issue status
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueReport'
+      responses:
+        '200':
+          description: Updated issue report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueReport'
+  /rest/v1/dorms:
+    get:
+      tags: [Dorms]
+      summary: List dorms
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      responses:
+        '200':
+          description: Dorm list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dorm'
+    post:
+      tags: [Dorms]
+      summary: Create dorm
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dorm'
+      responses:
+        '201':
+          description: Dorm created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dorm'
+  /rest/v1/users:
+    get:
+      tags: [Users]
+      summary: List user profiles
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      responses:
+        '200':
+          description: User profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserProfile'
+    post:
+      tags: [Users]
+      summary: Create user profile
+      security:
+        - supabaseKey: []
+        - supabaseBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfile'
+      responses:
+        '201':
+          description: User profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'

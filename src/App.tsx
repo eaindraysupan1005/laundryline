@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import SwaggerUIComponent from './components/SwaggerUIComponent';
 import { Machine, QueueEntry, IssueReport, MachineStatus } from './types';
 import { HomePage } from './components/HomePage';
 import { AuthPage } from './components/AuthPage';
@@ -513,8 +515,8 @@ function AppContent() {
       {isLoading && user && (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--primary)]"></div>
-            <p className="mt-4 text-[var(--text)]">Loading...</p>
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-(--primary)"></div>
+            <p className="mt-4 text-(--text)">Loading...</p>
           </div>
         </div>
       )}
@@ -525,10 +527,10 @@ function AppContent() {
       {user && !isLoading && (currentPage === 'login' || currentPage === 'signup') && (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <p className="text-[var(--text)] mb-4">Redirecting to dashboard...</p>
+            <p className="text-(--text) mb-4">Redirecting to dashboard...</p>
             <button 
               onClick={() => setCurrentPage('dashboard')}
-              className="bg-[var(--primary)] text-white px-4 py-2 rounded"
+              className="bg-(--primary) text-white px-4 py-2 rounded"
             >
               Go to Dashboard
             </button>
@@ -541,9 +543,16 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <Router>
+      <Routes>
+        <Route path="/" element={
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        } />
+        <Route path="/docs" element={<SwaggerUIComponent />} />
+      </Routes>
+    </Router>
   );
 }
 

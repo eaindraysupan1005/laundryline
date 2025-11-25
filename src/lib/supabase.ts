@@ -21,6 +21,7 @@ export interface User {
   name: string
   role: 'student' | 'manager'
   dorm_name: string
+  id_no: string | null
   created_at: string
 }
 
@@ -30,4 +31,5 @@ export interface AuthUser {
   name: string
   role: 'student' | 'manager'
   dorm_name: string
+  id_no: string | null
 }

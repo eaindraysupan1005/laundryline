@@ -10,6 +10,7 @@ export interface SignUpData {
   name: string
   role: UserRole
   dorm_name: string
+  id_no: string
 }
 
 export interface SignInData {
@@ -27,6 +28,7 @@ interface ProfileRow {
   name: string
   role: UserRole
   dorm_name: string
+  id_no: string | null
 }
 
 const mapProfile = (profile: ProfileRow): AuthUser => ({
@@ -34,7 +36,8 @@ const mapProfile = (profile: ProfileRow): AuthUser => ({
   email: profile.email,
   name: profile.name,
   role: profile.role,
-  dorm_name: profile.dorm_name
+  dorm_name: profile.dorm_name,
+  id_no: profile.id_no
 })
 
 async function signUp(userData: SignUpData): Promise<AuthResponse> {
@@ -60,7 +63,8 @@ async function signUp(userData: SignUpData): Promise<AuthResponse> {
     email: userData.email,
     name: userData.name,
     role: userData.role,
-    dorm_name: userData.dorm_name
+    dorm_name: userData.dorm_name,
+    id_no: userData.id_no
   }
 
   const { data: profileData, error: profileError } = await supabase
@@ -186,7 +190,7 @@ async function getCurrentUser(): Promise<AuthResponse> {
 
 async function updateProfile(userId: string, updates: Partial<Omit<AuthUser, 'id'>>): Promise<AuthResponse> {
   const cleanUpdates = Object.fromEntries(
-    Object.entries(updates).filter(([, value]) => value !== undefined && value !== null)
+    Object.entries(updates).filter(([, value]) => value !== undefined)
   )
 
   if (Object.keys(cleanUpdates).length === 0) {

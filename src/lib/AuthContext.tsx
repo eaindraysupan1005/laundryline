@@ -5,7 +5,7 @@ interface AuthContextType {
   user: AuthUser | null
   isLoading: boolean
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  signUp: (userData: { email: string; password: string; name: string; role: 'student' | 'manager'; dorm_name: string }) => Promise<{ success: boolean; error?: string }>
+  signUp: (userData: { email: string; password: string; name: string; role: 'student' | 'manager'; dorm_name: string; id_no: string }) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<{ success: boolean; error?: string }>
   updateUserProfile: (userId: string, updates: Partial<Omit<AuthUser, 'id'>>) => Promise<{ success: boolean; error?: string }>
   refreshUser: () => Promise<void>
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  const signUp = async (userData: { email: string; password: string; name: string; role: 'student' | 'manager'; dorm_name: string }) => {
+  const signUp = async (userData: { email: string; password: string; name: string; role: 'student' | 'manager'; dorm_name: string; id_no: string }) => {
     setIsLoading(true)
     try {
       const { user, error } = await AuthService.signUp(userData)
@@ -86,8 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error('SignUp error:', error)
         return { success: false, error }
       }
-      console.log('SignUp successful, setting user:', user)
-      setUser(user)
+      console.log('SignUp successful')
+      if (user) {
+        await AuthService.signOut()
+      }
+      setUser(null)
       return { success: true }
     } catch (error) {
       console.error('SignUp exception:', error)

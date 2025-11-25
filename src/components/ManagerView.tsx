@@ -17,7 +17,8 @@ interface ManagerViewProps {
   onEditMachine: (id: string, name: string, location: string) => void;
   onDeleteMachine: (id: string) => void;
   onUpdateMachineStatus: (id: string, status: MachineStatus) => void;
-  onResolveIssue: (id: string) => void;
+  onResolveIssue: (id: string) => Promise<void> | void;
+  dormName: string;
 }
 
 export function ManagerView({
@@ -27,7 +28,8 @@ export function ManagerView({
   onEditMachine,
   onDeleteMachine,
   onUpdateMachineStatus,
-  onResolveIssue
+  onResolveIssue,
+  dormName
 }: ManagerViewProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -61,7 +63,7 @@ export function ManagerView({
     setShowEditDialog(true);
   };
 
-  const pendingReports = issueReports.filter(r => r.status === 'pending');
+  const openReports = issueReports.filter(r => r.status === 'open' || r.status === 'in_progress');
   const resolvedReports = issueReports.filter(r => r.status === 'resolved');
 
   return (
@@ -71,8 +73,8 @@ export function ManagerView({
           <TabsTrigger value="machines">Machines</TabsTrigger>
           <TabsTrigger value="issues">
             Issue Reports
-            {pendingReports.length > 0 && (
-              <Badge className="ml-2 bg-[var(--accent)]">{pendingReports.length}</Badge>
+            {openReports.length > 0 && (
+              <Badge className="ml-2 bg-[var(--accent)]">{openReports.length}</Badge>
             )}
           </TabsTrigger>
         </TabsList>
@@ -93,40 +95,78 @@ export function ManagerView({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {machines.map(machine => (
-              <Card key={machine.id} className="border-2 border-[var(--primary)]">
+            {machines.map(machine => {
+              const isOperational = machine.operation_status === 'can_use';
+              const statusMeta: Record<MachineStatus, { label: string; badgeClass: string; Icon: typeof CheckCircle2 }> = {
+                can_use: {
+                  label: 'Can Use',
+                  badgeClass: 'bg-green-500',
+                  Icon: CheckCircle2
+                },
+                cannot_use: {
+                  label: 'Cannot Use',
+                  badgeClass: 'bg-[var(--accent)]',
+                  Icon: XCircle
+                },
+                in_maintenance: {
+                  label: 'In Maintenance',
+                  badgeClass: 'bg-yellow-500 text-black',
+                  Icon: AlertTriangle
+                }
+              };
+              const { label: statusLabel, badgeClass, Icon: StatusIcon } = statusMeta[machine.operation_status];
+              const availabilityLabel = machine.operation_status === 'can_use'
+                ? (machine.available_status === 'free' ? 'Free' : 'In Use')
+                : machine.operation_status === 'in_maintenance'
+                  ? 'In Maintenance'
+                  : 'Unavailable';
+              const machineDormLabel = machine.dorm_name ?? dormName;
+              const lastUpdatedDate = machine.last_updated ? new Date(machine.last_updated) : null;
+              const lastUpdatedLabel = lastUpdatedDate && !Number.isNaN(lastUpdatedDate.valueOf())
+                ? lastUpdatedDate.toLocaleString()
+                : null;
+
+              return (
+                <Card key={machine.id} className="border-2 border-[var(--primary)]">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-lg">{machine.name}</CardTitle>
-                      <CardDescription>{machine.location}</CardDescription>
+                      <CardDescription>
+                        {machine.location}
+                        <span className="block text-xs text-gray-500 mt-1">
+                          Dorm: {machineDormLabel}
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          Availability: {availabilityLabel}
+                        </span>
+                        {lastUpdatedLabel && (
+                          <span className="block text-xs text-gray-400">
+                            Last updated: {lastUpdatedLabel}
+                          </span>
+                        )}
+                      </CardDescription>
                     </div>
-                    {machine.status === 'can-use' ? (
-                      <Badge className="bg-green-500">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Can Use
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-[var(--accent)]">
-                        <XCircle className="w-3 h-3 mr-1" />
-                        Cannot Use
-                      </Badge>
-                    )}
+                    <Badge className={badgeClass}>
+                      <StatusIcon className="w-3 h-3 mr-1" />
+                      {statusLabel}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
                     <Label className="text-xs text-gray-600">Status</Label>
                     <Select
-                      value={machine.status}
-                      onValueChange={(value) => onUpdateMachineStatus(machine.id, value as MachineStatus)}
+                      value={machine.operation_status}
+                      onValueChange={(value: MachineStatus) => onUpdateMachineStatus(machine.id, value)}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="can-use">Can Use</SelectItem>
-                        <SelectItem value="cannot-use">Cannot Use</SelectItem>
+                        <SelectItem value="can_use">Can Use</SelectItem>
+                        <SelectItem value="cannot_use">Cannot Use</SelectItem>
+                        <SelectItem value="in_maintenance">In Maintenance</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -151,8 +191,9 @@ export function ManagerView({
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
 
           {machines.length === 0 && (
@@ -165,9 +206,9 @@ export function ManagerView({
         <TabsContent value="issues">
           <div className="space-y-6">
             <div>
-              <h2 className="text-[var(--text)] mb-4">Pending Issues</h2>
+              <h2 className="text-[var(--text)] mb-4">Open Issues</h2>
               <div className="space-y-3">
-                {pendingReports.map(report => {
+                {openReports.map(report => {
                   const machine = machines.find(m => m.id === report.machineId);
                   return (
                     <Card key={report.id} className="border-l-4 border-l-[var(--accent)]">
@@ -201,7 +242,7 @@ export function ManagerView({
                     </Card>
                   );
                 })}
-                {pendingReports.length === 0 && (
+                {openReports.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     No pending issues
                   </div>
@@ -249,7 +290,7 @@ export function ManagerView({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="machineName">Machine Name</Label>
+              <Label className="mb-4" htmlFor="machineName">Machine Name</Label>
               <Input
                 id="machineName"
                 value={machineName}
@@ -258,12 +299,21 @@ export function ManagerView({
               />
             </div>
             <div>
-              <Label htmlFor="machineLocation">Location</Label>
+              <Label className="mb-4" htmlFor="machineLocation">Location</Label>
               <Input
                 id="machineLocation"
                 value={machineLocation}
                 onChange={(e) => setMachineLocation(e.target.value)}
                 placeholder="e.g., Floor 2 - Room 205"
+              />
+            </div>
+            <div>
+              <Label htmlFor="machineDorm">Dormitory</Label>
+              <Input
+                id="machineDorm"
+                value={dormName}
+                readOnly
+                disabled
               />
             </div>
             <Button 
@@ -298,6 +348,15 @@ export function ManagerView({
                 value={machineLocation}
                 onChange={(e) => setMachineLocation(e.target.value)}
                 placeholder="e.g., Floor 2 - Room 205"
+              />
+            </div>
+            <div>
+              <Label htmlFor="editMachineDorm">Dormitory</Label>
+              <Input
+                id="editMachineDorm"
+                value={editingMachine?.dorm_name ?? dormName}
+                readOnly
+                disabled
               />
             </div>
             <Button 

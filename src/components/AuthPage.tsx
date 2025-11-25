@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
-import { Waves, ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { UserRole } from '../types';
 import { useAuth } from '../lib/AuthContext';
 import authLogo from '../assets/logo.png';
@@ -23,8 +23,19 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('student');
   const [dormName, setDormName] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSignupSuccess, setShowSignupSuccess] = useState(false);
+  const successTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) {
+        window.clearTimeout(successTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +57,7 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
         }
       } else {
         // Sign up mode
-        if (!name || !dormName) {
+        if (!name.trim() || !dormName.trim() || !idNumber.trim()) {
           setError('Please fill in all required fields');
           setIsLoading(false);
           return;
@@ -55,15 +66,30 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
         const result = await signUp({
           email,
           password,
-          name,
+          name: name.trim(),
           role,
-          dorm_name: dormName
+          dorm_name: dormName.trim(),
+          id_no: idNumber.trim()
         });
         
         if (result.error) {
           setError(result.error);
         } else if (result.success) {
-          onAuthSuccess();
+          setShowSignupSuccess(true);
+          if (successTimerRef.current) {
+            window.clearTimeout(successTimerRef.current);
+          }
+          successTimerRef.current = window.setTimeout(() => {
+            setShowSignupSuccess(false);
+            onNavigate('login');
+          }, 3000);
+
+          setEmail('');
+          setPassword('');
+          setName('');
+          setDormName('');
+          setIdNumber('');
+          setRole('student');
         }
       }
     } catch (error) {
@@ -74,7 +100,8 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[var(--background)] to-white flex items-center justify-center px-4 py-8">
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-[var(--background)] to-white flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         <Button
           onClick={() => onNavigate('home')}
@@ -90,6 +117,12 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
             <div className="flex justify-center mb-4">
               <img src={authLogo} alt="LaundryLine" className="w-32 h-auto" />
             </div>
+            {mode === 'signup' && showSignupSuccess && (
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className='text-green-400'>Account created successfully! Redirecting to login...</span>
+              </div>
+            )}
             <CardTitle className="text-[var(--text)]">
               {mode === 'login' ? 'Welcome Back' : 'Create Account'}
             </CardTitle>
@@ -130,6 +163,18 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
                       value={dormName}
                       onChange={(e) => setDormName(e.target.value)}
                       placeholder="East Hall, West Wing, etc."
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="idNumber" className="mb-2 block">{role === 'student' ? 'Student ID' : 'Staff ID'}</Label>
+                    <Input
+                      id="idNumber"
+                      type="text"
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      placeholder={role === 'student' ? 'e.g., S12345' : 'e.g., ST-001'}
                       required
                     />
                   </div>
@@ -217,6 +262,7 @@ export function AuthPage({ mode, onAuthSuccess, onNavigate }: AuthPageProps) {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

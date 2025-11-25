@@ -21,6 +21,7 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
   
   const [name, setName] = useState(currentUser.name);
   const [dormName, setDormName] = useState(currentUser.dorm_name);
+  const [idNumber, setIdNumber] = useState(currentUser.id_no ?? '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
     if (currentUser) {
       setName(currentUser.name);
       setDormName(currentUser.dorm_name);
+      setIdNumber(currentUser.id_no ?? '');
     }
   }, [currentUser]);
 
@@ -57,7 +59,8 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
       console.log('Updating profile for user:', currentUser.id);
       const result = await updateUserProfile(currentUser.id, {
         name: name.trim(),
-        dorm_name: dormName.trim()
+        dorm_name: dormName.trim(),
+        id_no: idNumber.trim() || null
       });
 
       if (result.error) {
@@ -160,6 +163,11 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
                   <Label className="text-sm font-medium text-gray-500">Dormitory</Label>
                   <div className="mt-1 text-sm font-medium">{currentUser.dorm_name}</div>
                 </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-gray-500">ID Number</Label>
+                  <div className="mt-1 text-sm font-medium">{currentUser.id_no || 'Not set'}</div>
+                </div>
                 
                 <div className="flex gap-2 pt-4">
                   <Button
@@ -209,6 +217,17 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
                     required
                   />
                 </div>
+
+                <div>
+                  <Label htmlFor="idNumber" className="mb-2 block">ID Number</Label>
+                  <Input
+                    id="idNumber"
+                    type="text"
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                    placeholder="e.g., S12345"
+                  />
+                </div>
                 
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Email</Label>
@@ -245,6 +264,7 @@ export function ProfilePage({ user, onLogout, onBack }: ProfilePageProps) {
                       setIsEditing(false);
                       setName(currentUser.name);
                       setDormName(currentUser.dorm_name);
+                      setIdNumber(currentUser.id_no ?? '');
                       setError(null);
                       setSuccessMessage(null);
                     }}

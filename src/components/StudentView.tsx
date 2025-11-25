@@ -1,8 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Machine, QueueEntry } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Machine, QueueEntry, IssueReport } from '../types';
 import { MachineCard } from './MachineCard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -11,49 +19,103 @@ import { Label } from './ui/label';
 interface StudentViewProps {
   machines: Machine[];
   queues: QueueEntry[];
-  onJoinQueue: (machineId: string, studentId: string, roomNumber: string) => void;
-  onReportIssue: (machineId: string, studentId: string, issueType: string, description: string) => void;
+  issueReports: IssueReport[];
+  onJoinQueue: (machineId: string, studentIdentifier: string) => Promise<boolean>;
+  onLeaveQueue: (machineId: string, studentIdentifier: string) => Promise<boolean>;
+  onReportIssue: (
+    machineId: string,
+    reporterIdentifier: string,
+    issueType: string,
+    description: string,
+    reporterDisplayId?: string
+  ) => Promise<boolean>;
   currentStudentId?: string;
+  currentUserId?: string;
 }
 
-export function StudentView({ machines, queues, onJoinQueue, onReportIssue, currentStudentId }: StudentViewProps) {
+export function StudentView({
+  machines,
+  queues,
+  onJoinQueue,
+  onLeaveQueue,
+  issueReports,
+  onReportIssue,
+  currentStudentId,
+  currentUserId
+}: StudentViewProps) {
   const [showQueueDialog, setShowQueueDialog] = useState(false);
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [showTurnAlert, setShowTurnAlert] = useState(false);
   const [turnMachineName, setTurnMachineName] = useState('');
   const [selectedMachineId, setSelectedMachineId] = useState<string>('');
-  const [studentId, setStudentId] = useState('');
-  const [roomNumber, setRoomNumber] = useState('');
+  const [studentId, setStudentId] = useState(currentStudentId ?? '');
   const [issueType, setIssueType] = useState('');
   const [issueDescription, setIssueDescription] = useState('');
   const [notifiedQueues, setNotifiedQueues] = useState<Set<string>>(new Set());
 
-  // Check if it's the student's turn in any queue
+  // Keep the visible student ID in sync with the profile value
   useEffect(() => {
-    if (!currentStudentId) return;
+    if (currentStudentId) {
+      setStudentId(currentStudentId);
+    }
+  }, [currentStudentId]);
 
-    queues.forEach(queueEntry => {
-      // Get all queue entries for this machine, sorted by timestamp
+  const queueUserKey = currentUserId ?? currentStudentId ?? '';
+  const userQueueEntries = queueUserKey ? queues.filter((entry) => entry.userId === queueUserKey) : [];
+  const activeQueueMachineIds = new Set(userQueueEntries.map((entry) => entry.machineId));
+
+  const activeIssueByMachine = useMemo(() => {
+    const map = new Map<string, IssueReport>();
+
+    issueReports.forEach((issue) => {
+      if (issue.status === 'resolved') {
+        return;
+      }
+
+      const existing = map.get(issue.machineId);
+      if (!existing || issue.timestamp > existing.timestamp) {
+        map.set(issue.machineId, issue);
+      }
+    });
+
+    return map;
+  }, [issueReports]);
+
+  // Surface an alert when the current user reaches the front of a queue
+  useEffect(() => {
+    if (!queueUserKey) {
+      return;
+    }
+
+    queues.forEach((queueEntry) => {
       const machineQueue = queues
-        .filter(q => q.machineId === queueEntry.machineId)
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        .filter((q) => q.machineId === queueEntry.machineId)
+        .sort((a, b) => a.position - b.position);
 
-      // Check if this student is first in queue
       const firstInQueue = machineQueue[0];
-      if (firstInQueue && 
-          firstInQueue.studentId === currentStudentId && 
-          !notifiedQueues.has(firstInQueue.id)) {
-        const machine = machines.find(m => m.id === queueEntry.machineId);
+      if (
+        firstInQueue &&
+        firstInQueue.userId === queueUserKey &&
+        !notifiedQueues.has(firstInQueue.id)
+      ) {
+          const machine = machines.find((m) => m.id === queueEntry.machineId);
         if (machine) {
           setTurnMachineName(machine.name);
           setShowTurnAlert(true);
-          setNotifiedQueues(prev => new Set(prev).add(firstInQueue.id));
+          setNotifiedQueues((prev) => {
+            const updated = new Set(prev);
+            updated.add(firstInQueue.id);
+            return updated;
+          });
         }
       }
     });
-  }, [queues, currentStudentId, machines, notifiedQueues]);
+  }, [machines, notifiedQueues, queueUserKey, queues]);
 
   const handleJoinQueue = (machineId: string) => {
+    if (activeQueueMachineIds.size > 0 && !activeQueueMachineIds.has(machineId)) {
+      return;
+    }
     setSelectedMachineId(machineId);
     setShowQueueDialog(true);
   };
@@ -63,51 +125,98 @@ export function StudentView({ machines, queues, onJoinQueue, onReportIssue, curr
     setShowIssueDialog(true);
   };
 
-  const submitQueue = () => {
-    if (studentId && roomNumber) {
-      onJoinQueue(selectedMachineId, studentId, roomNumber);
-      setShowQueueDialog(false);
-      setStudentId('');
-      setRoomNumber('');
+  const handleCancelQueue = async (machineId: string) => {
+    if (!queueUserKey) {
+      return;
+    }
+
+    const success = await onLeaveQueue(machineId, queueUserKey);
+    if (success) {
+      setNotifiedQueues((prev) => {
+        const updated = new Set(prev);
+        userQueueEntries
+          .filter((entry) => entry.machineId === machineId)
+          .forEach((entry) => updated.delete(entry.id));
+        return updated;
+      });
     }
   };
 
-  const submitIssue = () => {
-    if (studentId && issueType) {
-      onReportIssue(selectedMachineId, studentId, issueType, issueDescription);
+  const submitQueue = async () => {
+    const queueIdentifier = currentUserId ?? studentId;
+    if (!selectedMachineId || !queueIdentifier) {
+      return;
+    }
+
+    if (activeQueueMachineIds.size > 0 && !activeQueueMachineIds.has(selectedMachineId)) {
+      return;
+    }
+
+    const success = await onJoinQueue(selectedMachineId, queueIdentifier);
+    if (success) {
+      setShowQueueDialog(false);
+      setSelectedMachineId('');
+    }
+  };
+
+  const submitIssue = async () => {
+    const reporterId = currentUserId ?? '';
+
+    if (!selectedMachineId || !reporterId || !studentId) {
+      return;
+    }
+
+    const success = await onReportIssue(
+      selectedMachineId,
+      reporterId,
+      issueType,
+      issueDescription,
+      studentId
+    );
+
+    if (success) {
       setShowIssueDialog(false);
-      setStudentId('');
       setIssueType('');
       setIssueDescription('');
     }
   };
 
-  const availableMachines = machines.filter(m => m.status === 'can-use');
-
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-[var(--text)] mb-2">Available Machines</h2>
-        <p className="text-gray-600">View real-time availability and join queues</p>
+        <h2 className="text-[var(--text)] mb-2">Dorm Machines</h2>
+        <p className="text-gray-600">View current status, queue details, and report issues</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {availableMachines.map(machine => (
-          <MachineCard
-            key={machine.id}
-            machine={machine}
-            queue={queues.filter(q => q.machineId === machine.id)}
-            onJoinQueue={handleJoinQueue}
-            onReportIssue={handleReportIssue}
-            userRole="student"
-          />
-        ))}
+        {machines.map((machine) => {
+          const machineQueue = queues
+            .filter((queue) => queue.machineId === machine.id)
+            .sort((a, b) => a.position - b.position);
+
+          const isQueuedHere = activeQueueMachineIds.has(machine.id);
+          const isJoinDisabled = activeQueueMachineIds.size > 0 && !isQueuedHere;
+          const activeIssue = activeIssueByMachine.get(machine.id);
+
+          return (
+            <MachineCard
+              key={machine.id}
+              machine={machine}
+              queue={machineQueue}
+              onJoinQueue={handleJoinQueue}
+              onCancelQueue={handleCancelQueue}
+              onReportIssue={handleReportIssue}
+              isQueuedByCurrentUser={isQueuedHere}
+              joinDisabled={isJoinDisabled}
+              userRole="student"
+              issueStatus={activeIssue?.status}
+            />
+          );
+        })}
       </div>
 
-      {availableMachines.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
-          No machines available at the moment
-        </div>
+      {machines.length === 0 && (
+        <div className="text-center py-12 text-gray-500">No machines registered yet</div>
       )}
 
       <Dialog open={showQueueDialog} onOpenChange={setShowQueueDialog}>
@@ -117,25 +226,20 @@ export function StudentView({ machines, queues, onJoinQueue, onReportIssue, curr
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="studentId">Student ID</Label>
+              <Label className="mb-4" htmlFor="studentId">
+                Student ID
+              </Label>
               <Input
                 id="studentId"
                 value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
+                onChange={(event) => setStudentId(event.target.value)}
                 placeholder="e.g., S12345"
+                disabled={!!currentStudentId}
               />
             </div>
-            <div>
-              <Label htmlFor="roomNumber">Room Number</Label>
-              <Input
-                id="roomNumber"
-                value={roomNumber}
-                onChange={(e) => setRoomNumber(e.target.value)}
-                placeholder="e.g., 205"
-              />
-            </div>
-            <Button 
+            <Button
               onClick={submitQueue}
+              disabled={activeQueueMachineIds.size > 0 && !activeQueueMachineIds.has(selectedMachineId)}
               className="w-full bg-[var(--primary)] hover:bg-[var(--primary)]/90 text-[var(--text)]"
             >
               Join Queue
@@ -151,36 +255,43 @@ export function StudentView({ machines, queues, onJoinQueue, onReportIssue, curr
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="reportStudentId">Student ID</Label>
+              <Label className="mb-4" htmlFor="reportStudentId">
+                Student ID
+              </Label>
               <Input
                 id="reportStudentId"
                 value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
+                onChange={(event) => setStudentId(event.target.value)}
                 placeholder="e.g., S12345"
               />
             </div>
             <div>
-              <Label htmlFor="issueType">Issue Type</Label>
+              <Label className="mb-4" htmlFor="issueType">
+                Issue Type
+              </Label>
               <Input
                 id="issueType"
                 value={issueType}
-                onChange={(e) => setIssueType(e.target.value)}
+                onChange={(event) => setIssueType(event.target.value)}
                 placeholder="e.g., Machine leaking, Won't spin"
               />
             </div>
             <div>
-              <Label htmlFor="issueDescription">Description (Optional)</Label>
+              <Label className="mb-4" htmlFor="issueDescription">
+                Description (Optional)
+              </Label>
               <Textarea
                 id="issueDescription"
                 value={issueDescription}
-                onChange={(e) => setIssueDescription(e.target.value)}
+                onChange={(event) => setIssueDescription(event.target.value)}
                 placeholder="Additional details..."
                 rows={3}
               />
             </div>
-            <Button 
+            <Button
               onClick={submitIssue}
               className="w-full bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-white"
+              disabled={!currentUserId}
             >
               Submit Report
             </Button>
@@ -198,7 +309,7 @@ export function StudentView({ machines, queues, onJoinQueue, onReportIssue, curr
           </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setShowTurnAlert(false)}>
-              Got it
+              OK
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Dorm, UserRole } from '../types';
 import { useAuth } from '../lib/AuthContext';
-import authLogo from '../assets/logo.png';
+import authLogo from '../assets/laundryline.png';
 import { getDorms, createDorm } from '../lib/dorms';
 
 interface AuthPageProps {

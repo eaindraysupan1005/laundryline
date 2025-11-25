@@ -7,7 +7,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import logoImage from "../assets/logo.png";
+import logoImage from "../assets/laundryline.png";
 
 interface HomePageProps {
   onNavigate: (page: "login" | "signup") => void;
